@@ -1,7 +1,6 @@
 import asyncio
 import websockets
 import json
-import re
 import platform
 import logging
 import configparser
@@ -10,7 +9,8 @@ import sys
 import winreg
 import ctypes
 from dataclasses import dataclass
-from typing import Optional, Any
+
+from formatter import parse_ping_output, parse_tracert_output
 
 # City mapping based on agreement ID prefix
 CITY_MAPPING = {
@@ -37,7 +37,7 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -116,63 +116,7 @@ def load_or_create_config() -> ClientConfig:
     )
 
 
-def parse_ping_output(output: str) -> Optional[dict]:
-    """Extract ping statistics using regular expressions."""
-    packet_loss_match = re.search(r"\((\d+)% �����\)", output)  # Packet loss
-    min_rtt_match = re.search(r"�������쭮� = (\d+)�ᥪ", output)  # Min RTT
-    avg_rtt_match = re.search(r"���ᨬ��쭮� = (\d+) �ᥪ", output)  # Avg RTT
-    max_rtt_match = re.search(r"�।��� = (\d+) �ᥪ", output)  # Max RTT
 
-    if all([packet_loss_match, min_rtt_match, avg_rtt_match, max_rtt_match]):
-        return {
-            "packet_loss": int(packet_loss_match.group(1)),
-            "min_rtt": int(min_rtt_match.group(1)),
-            "avg_rtt": int(avg_rtt_match.group(1)),
-            "max_rtt": int(max_rtt_match.group(1))
-        }
-    else:
-        logging.warning("[Оперативник] Ошибка обработки результата пинга. Голый вывод: %s", output)
-        return None
-
-
-def parse_tracert_output(output: str) -> list[dict[str, int | str | float | Any]] | None:
-    """Parses the tracert output into a list of dictionaries with min/avg/max RTTs."""
-    try:
-        hops = []
-        lines = output.strip().splitlines()
-
-        # Skip header lines (adjust as needed for your tracert output format)
-        data_lines = lines[3:]  # Start from the 4th line usually
-
-        for line in data_lines:
-            match = re.match(r"^\s*(\d+)\s+([\dms* ]+)\s+([\w.\-]+)?", line)  # Improved regex
-            if match:
-                hop_num = int(match.group(1))
-                rtt_info = match.group(2).strip()
-                ip_address = match.group(3) if match.group(3) else "*"
-
-                rtts = [int(r) for r in rtt_info.split() if r.isdigit()]  # Extract numerical RTTs
-
-                if rtts:
-                    min_rtt = min(rtts)
-                    avg_rtt = sum(rtts) / len(rtts)
-                    max_rtt = max(rtts)
-                else:
-                    min_rtt = "*"
-                    avg_rtt = "*"
-                    max_rtt = "*"
-
-                hops.append({
-                    "hop": hop_num,
-                    "ip": ip_address,
-                    "min_rtt": min_rtt,
-                    "avg_rtt": avg_rtt,
-                    "max_rtt": max_rtt
-                })
-        return hops
-    except Exception as e:
-        logging.error(f"[Оперативник] Ошибка обработки результата трассировки: {e}")
-        return None
 
 
 async def run_diagnostic(command: str, target: str) -> str:
@@ -204,7 +148,7 @@ async def run_diagnostic(command: str, target: str) -> str:
                 return json.dumps(ping_stats)
             else:
                 return "Error: Could not parse ping output"
-        else:  # tracert
+        else:
             tracert_data = parse_tracert_output(out_decoded)  # Parse tracert
             if tracert_data:
                 return json.dumps(tracert_data)  # Return JSON
