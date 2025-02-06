@@ -178,6 +178,7 @@ def parse_tracert_output(output: str) -> list[dict[str, int | str | float | Any]
 async def run_diagnostic(command: str, target: str) -> str:
     """Выполнение диагностической команды"""
     try:
+        logging.info(f"[Оперативник] Запущена команда {command} до ресурса {target}")
         process = await asyncio.create_subprocess_exec(
             command, target, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
@@ -196,6 +197,7 @@ async def run_diagnostic(command: str, target: str) -> str:
         except UnicodeDecodeError:
             out_decoded = stdout.decode(errors='replace')
 
+        logging.info(f"[Оперативник] Тест {command} до ресурса {target} завершен")
         if command == "ping":
             ping_stats = parse_ping_output(out_decoded)
             if ping_stats:
