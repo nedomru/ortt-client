@@ -1,3 +1,4 @@
 *.txt
 .idea
 output
+__pycache__
