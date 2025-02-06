@@ -108,11 +108,11 @@ class DiagnosticClient:
             sys.exit()
 
     async def message_handler(self):
-        """Обработка входящих сообщений"""
+        """Обработка входящих сообщений (параллельно)"""
         while self.is_running:
             try:
                 message = await self.websocket.recv()
-                await self.process_message(json.loads(message))
+                asyncio.create_task(self.process_message(json.loads(message)))
             except websockets.ConnectionClosed:
                 break
             except json.JSONDecodeError:
@@ -121,14 +121,18 @@ class DiagnosticClient:
                 logging.error(f"[Оперативник] Ошибка обработки сообщения: {e}")
 
     async def process_message(self, message: dict):
-        """Обработка команд от сервера"""
+        """Обработка команд от сервера (теперь выполняется в отдельной задаче)"""
         if message.get("type") == "command":
             command = message.get("command")
             target = message.get("target")
 
             if command in ["tracert", "ping"]:
-                result = await run_diagnostic(command, target)
-                await self.send_result(command, target, result)
+                try:
+                    result = await run_diagnostic(command, target)
+                    await self.send_result(command, target, result)
+                except Exception as e:  # Handle exceptions within the task
+                    logging.error(f"[Оперативник] Ошибка выполнения команды {command} к {target}: {e}")
+                    await self.send_result(command, target, f"Error: {str(e)}") # Send error result
 
     async def send_result(self, command: str, target: str, result: str):
         """Отправка результатов на сервер"""
