@@ -71,7 +71,7 @@ def load_or_create_config() -> ClientConfig:
         default_config = {
             'DEFAULT': {
                 'agreement_id': '',
-                'server_url': 'ws://ort.chrsnv.ru:8765',
+                'server_url': 'ws://ortt.chrsnv.ru:8765',
                 'autostart': 'True'
             }
         }
