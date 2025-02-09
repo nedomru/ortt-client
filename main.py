@@ -26,15 +26,25 @@ async def run_diagnostic(command: str, target: str) -> str:
     try:
         logging.info(f"[Оперативник] Запущена команда {command} до ресурса {target}")
 
-        creationflags = subprocess.CREATE_NO_WINDOW
+        base_commands = {
+            "ping": ["ping", "-n", "30", "-l", "1200"],
+            "tracert": ["tracert", "/4"]
+        }
+        
+        if command not in base_commands:
+            raise ValueError(f"Unsupported command: {command}")
+            
+        # Combine the base command with the target
+        full_command = base_commands[command] + [target]
+        
         process = await asyncio.create_subprocess_exec(
-            command, target, 
-            stdout=asyncio.subprocess.PIPE, 
+            *full_command,  # Unpack the command list
+            stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            creationflags=creationflags
+            creationflags=subprocess.CREATE_NO_WINDOW
         )
         stdout, stderr = await process.communicate()
-
+            
         if stderr:
             try:
                 err_decoded = stderr.decode('utf-8', errors='replace')
@@ -128,6 +138,7 @@ class DiagnosticClient:
 
             if command in ["tracert", "ping"]:
                 try:
+                    logging.info(command)
                     result = await run_diagnostic(command, target)
                     await self.send_result(command, target, result)
                 except Exception as e:  # Handle exceptions within the task
